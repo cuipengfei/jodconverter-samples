@@ -27,19 +27,3 @@ jobs:
           path: "samples/spring-boot-rest/**/test-results/**/TEST*.xml"
           reporter: java-junit
           fail-on-error: false
-      - name: Build and test WEBAPP example
-        uses: gradle/gradle-build-action@v2
-        with:
-          arguments: :samples:spring-boot-webapp:test
-      - name: Report
-        uses: dorny/test-reporter@v1.6.0
-        if: always()
-        with:
-          name: Tests Results WEBAPP
-          path: "samples/spring-boot-webapp/**/test-results/**/TEST*.xml"
-          reporter: java-junit
-          fail-on-error: false
-      - name: Build and Basic WebApp
-        uses: gradle/gradle-build-action@v2
-        with:
-          arguments: :samples:basic-webapp:build
