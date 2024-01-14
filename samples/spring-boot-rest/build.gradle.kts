@@ -1,6 +1,7 @@
 plugins {
     id("java")
     id("war")
+    id("idea")
     id("org.springframework.boot") version Versions.springBoot
 }
 
@@ -8,6 +9,13 @@ description = "Sample Spring Boot Rest Api"
 
 repositories {
     mavenCentral()
+}
+
+idea {
+    module {
+        isDownloadJavadoc = true
+        isDownloadSources = true
+    }
 }
 
 dependencies {
