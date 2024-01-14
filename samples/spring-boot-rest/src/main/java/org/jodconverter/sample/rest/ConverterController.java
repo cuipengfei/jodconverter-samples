@@ -4,12 +4,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import org.apache.commons.io.FilenameUtils;
 import org.jodconverter.core.DocumentConverter;
 import org.jodconverter.core.document.DefaultDocumentFormatRegistry;
 import org.jodconverter.core.document.DocumentFormat;
 import org.jodconverter.core.office.OfficeException;
 import org.jodconverter.core.office.OfficeManager;
-import org.jodconverter.core.util.FileUtils;
 import org.jodconverter.core.util.StringUtils;
 import org.jodconverter.local.LocalConverter;
 import org.slf4j.Logger;
@@ -158,16 +158,20 @@ public class ConverterController {
 
             final HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType(targetFormat.getMediaType()));
+
             headers.add(
                     "Content-Disposition",
                     "attachment; filename="
-                            + FileUtils.getBaseName(inputFile.getOriginalFilename())
-                            + "."
-                            + targetFormat.getExtension());
+                            + getEncodedFileName(inputFile, targetFormat));
             return ResponseEntity.ok().headers(headers).body(baos.toByteArray());
 
         } catch (OfficeException | IOException ex) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ex);
         }
+    }
+
+    private static String getEncodedFileName(MultipartFile inputFile, DocumentFormat targetFormat) {
+        return FilenameUtils.removeExtension(inputFile.getOriginalFilename())
+                + "." + targetFormat.getExtension();
     }
 }
