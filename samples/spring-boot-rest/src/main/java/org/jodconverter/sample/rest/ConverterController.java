@@ -15,10 +15,7 @@ import org.jodconverter.local.LocalConverter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.util.Assert;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +28,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Controller that will process conversion requests. The mapping is the same as LibreOffice Online
@@ -83,7 +82,7 @@ public class ConverterController {
                     required = true)
             @RequestParam(name = "format") final String convertToFormat,
             @Parameter(description = "The custom options to apply to the conversion.")
-            @RequestParam(required = false) final Map<String, String> parameters) {
+            @RequestParam(required = true) final Map<String, String> parameters) {
 
         LOGGER.debug("convertUsingRequestParam > Converting file to {}", convertToFormat);
         return convert(inputFile, convertToFormat, parameters);
@@ -113,7 +112,7 @@ public class ConverterController {
                     required = true)
             @PathVariable(name = "format") final String convertToFormat,
             @Parameter(description = "The custom options to apply to the conversion.")
-            @RequestParam(required = false) final Map<String, String> parameters) {
+            @RequestParam(required = true) final Map<String, String> parameters) {
 
         LOGGER.debug("convertUsingPathVariable > Converting file to {}", convertToFormat);
         return convert(inputFile, convertToFormat, parameters);
@@ -159,10 +158,9 @@ public class ConverterController {
             final HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType(targetFormat.getMediaType()));
 
-            headers.add(
-                    "Content-Disposition",
-                    "attachment; filename="
-                            + getEncodedFileName(inputFile, targetFormat));
+            headers.setContentDisposition(ContentDisposition.attachment()
+                    .filename(getFileName(inputFile, targetFormat), UTF_8)
+                    .build());
             return ResponseEntity.ok().headers(headers).body(baos.toByteArray());
 
         } catch (OfficeException | IOException ex) {
@@ -170,7 +168,7 @@ public class ConverterController {
         }
     }
 
-    private static String getEncodedFileName(MultipartFile inputFile, DocumentFormat targetFormat) {
+    private static String getFileName(MultipartFile inputFile, DocumentFormat targetFormat) {
         return FilenameUtils.removeExtension(inputFile.getOriginalFilename())
                 + "." + targetFormat.getExtension();
     }
