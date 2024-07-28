@@ -1,11 +1,16 @@
 package org.jodconverter.sample.rest;
 
+import com.sun.star.awt.Point;
 import com.sun.star.awt.Size;
 import com.sun.star.beans.PropertyVetoException;
 import com.sun.star.beans.UnknownPropertyException;
 import com.sun.star.beans.XPropertySet;
 import com.sun.star.container.NoSuchElementException;
 import com.sun.star.container.XNameAccess;
+import com.sun.star.drawing.XDrawPage;
+import com.sun.star.drawing.XDrawPageSupplier;
+import com.sun.star.drawing.XShape;
+import com.sun.star.lang.IndexOutOfBoundsException;
 import com.sun.star.lang.WrappedTargetException;
 import com.sun.star.lang.XComponent;
 import com.sun.star.sheet.*;
@@ -47,11 +52,6 @@ public class ExcelSinglePageFilter implements Filter {
             adjustOneSheet(sheetName, sheet, xPageStyles);
         }
 
-//        // 保存文件
-//        XStorable xStorable = queryInterface(XStorable.class, xSpreadsheetDocument);
-//        xStorable.storeToURL("file:///C:/Users/39764/Downloads/out" + new Date().hashCode() + ".ods", new PropertyValue[0]);
-
-        // 执行过滤器链的下一个过滤器
         chain.doFilter(context, document);
     }
 
@@ -61,7 +61,6 @@ public class ExcelSinglePageFilter implements Filter {
 
         // 使用XCellRangeAddressable接口来获取范围地址
         CellRangeAddress rangeAddress = getCellRangeAddress(xUsedAreaCursor);
-
         // 获取列和行
         XColumnRowRange columnRowRange = getxColumnRowRange(sheet);
 
@@ -72,6 +71,12 @@ public class ExcelSinglePageFilter implements Filter {
         int totalHeight = getTotalHeight(columnRowRange, rangeAddress.EndRow);
         log.info("sheet: {} used area total width: {}, total height: {}", sheetName, totalWidth, totalHeight);
 
+        // Include graphical objects in the total dimensions
+        Size graphicalSize = getGraphicalObjectsSize(sheet);
+        totalWidth = Math.max(totalWidth, graphicalSize.Width);
+        totalHeight = Math.max(totalHeight, graphicalSize.Height);
+        log.info("sheet: {} final total width: {}, final total height: {}", sheetName, totalWidth, totalHeight);
+
         // 获取PageStyle
         XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
 
@@ -81,7 +86,29 @@ public class ExcelSinglePageFilter implements Filter {
         setMarginToZero(xPageStyleProps);
 
         // 设置缩放比例以适应一页
-        xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1); // 启用缩放到页面 must be short
+        // must be short
+        xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
+    }
+
+    private static Size getGraphicalObjectsSize(XSpreadsheet sheet)
+            throws WrappedTargetException, IndexOutOfBoundsException {
+        XDrawPageSupplier drawPageSupplier = queryInterface(XDrawPageSupplier.class, sheet);
+        XDrawPage drawPage = drawPageSupplier.getDrawPage();
+        int count = drawPage.getCount();
+
+        int maxWidth = 0;
+        int maxHeight = 0;
+
+        for (int i = 0; i < count; i++) {
+            XShape shape = queryInterface(XShape.class, drawPage.getByIndex(i));
+            Point position = shape.getPosition();
+            Size size = shape.getSize();
+
+            maxWidth = Math.max(maxWidth, position.X + size.Width);
+            maxHeight = Math.max(maxHeight, position.Y + size.Height);
+        }
+
+        return new Size(maxWidth, maxHeight);
     }
 
     private static void setMarginToZero(XPropertySet xPageStyleProps)
