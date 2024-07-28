@@ -14,7 +14,6 @@ import com.sun.star.table.CellRangeAddress;
 import com.sun.star.table.XCellRange;
 import com.sun.star.table.XColumnRowRange;
 import org.jodconverter.core.office.OfficeContext;
-import org.jodconverter.core.office.OfficeException;
 import org.jodconverter.local.filter.Filter;
 import org.jodconverter.local.filter.FilterChain;
 import org.slf4j.Logger;
@@ -28,54 +27,61 @@ public class ExcelSinglePageFilter implements Filter {
     @Override
     public void doFilter(OfficeContext context, XComponent document, FilterChain chain) throws Exception {
         // 检查是否是Excel文档
-        XSpreadsheetDocument xSpreadsheetDocument = getDocument(context, document, chain);
-        if (xSpreadsheetDocument == null) return;
+        XSpreadsheetDocument xSpreadsheetDocument = queryInterface(XSpreadsheetDocument.class, document);
+        if (xSpreadsheetDocument == null) {
+            chain.doFilter(context, document);
+            return;
+        }
 
+        log.info("going to make excel single page");
         // 获取全局xPageStyles
         XNameAccess xPageStyles = getPageStyles(xSpreadsheetDocument);
 
         // 遍历每个工作表
         String[] sheetNames = xSpreadsheetDocument.getSheets().getElementNames();
         for (String sheetName : sheetNames) {
+            log.info("going to process sheet: {}", sheetName);
+
             // 获取当前工作表
             XSpreadsheet sheet = queryInterface(XSpreadsheet.class, xSpreadsheetDocument.getSheets().getByName(sheetName));
-
-            XUsedAreaCursor xUsedAreaCursor = goToEnd(sheet);
-
-            // 使用XCellRangeAddressable接口来获取范围地址
-            CellRangeAddress rangeAddress = getCellRangeAddress(xUsedAreaCursor);
-
-            // 获取列和行
-            XColumnRowRange columnRowRange = getxColumnRowRange(sheet);
-
-            // 计算非空列宽度
-            int totalWidth = getTotalWidth(columnRowRange, rangeAddress.EndColumn);
-            // 计算非空行高度
-            int totalHeight = getTotalHeight(columnRowRange, rangeAddress.EndRow);
-
-            // 获取PageStyle
-            XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
-
-            // 设置纸张大小和方向
-            xPageStyleProps.setPropertyValue("IsLandscape", true); // 设置为横向打印
-            xPageStyleProps.setPropertyValue("Size", new Size(totalWidth, totalHeight));
-            setMarginToZero(xPageStyleProps);
-
-            // 设置缩放模式
-            // 设置缩放比例以适应一页
-//            xPageStyleProps.setPropertyValue("PageScale", 100); // 页面的缩放比例（例如，100%）
-            xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1); // 启用缩放到页面 must be short
-//            xPageStyleProps.setPropertyValue("ScaleToPagesX", 0); // 一页宽
-//            xPageStyleProps.setPropertyValue("ScaleToPagesY", 0); // 一页高
+            adjustOneSheet(sheetName, sheet, xPageStyles);
         }
-//
+
 //        // 保存文件
 //        XStorable xStorable = queryInterface(XStorable.class, xSpreadsheetDocument);
 //        xStorable.storeToURL("file:///C:/Users/39764/Downloads/out" + new Date().hashCode() + ".ods", new PropertyValue[0]);
 
-
         // 执行过滤器链的下一个过滤器
         chain.doFilter(context, document);
+    }
+
+    private static void adjustOneSheet(String sheetName, XSpreadsheet sheet, XNameAccess xPageStyles)
+            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException, NoSuchElementException, PropertyVetoException {
+        XUsedAreaCursor xUsedAreaCursor = goToEnd(sheet);
+
+        // 使用XCellRangeAddressable接口来获取范围地址
+        CellRangeAddress rangeAddress = getCellRangeAddress(xUsedAreaCursor);
+
+        // 获取列和行
+        XColumnRowRange columnRowRange = getxColumnRowRange(sheet);
+
+        log.info("sheet: {} used area column: {}, row: {}", sheetName, rangeAddress.EndColumn, rangeAddress.EndRow);
+        // 计算非空列宽度
+        int totalWidth = getTotalWidth(columnRowRange, rangeAddress.EndColumn);
+        // 计算非空行高度
+        int totalHeight = getTotalHeight(columnRowRange, rangeAddress.EndRow);
+        log.info("sheet: {} used area total width: {}, total height: {}", sheetName, totalWidth, totalHeight);
+
+        // 获取PageStyle
+        XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
+
+        // 设置纸张大小和方向
+        xPageStyleProps.setPropertyValue("IsLandscape", true); // 设置为横向打印
+        xPageStyleProps.setPropertyValue("Size", new Size(totalWidth, totalHeight));
+        setMarginToZero(xPageStyleProps);
+
+        // 设置缩放比例以适应一页
+        xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1); // 启用缩放到页面 must be short
     }
 
     private static void setMarginToZero(XPropertySet xPageStyleProps)
@@ -89,6 +95,7 @@ public class ExcelSinglePageFilter implements Filter {
     private static XPropertySet getPageStyleProps(XSpreadsheet sheet, XNameAccess xPageStyles)
             throws UnknownPropertyException, WrappedTargetException, NoSuchElementException {
         String pageStyleName = queryInterface(XPropertySet.class, sheet).getPropertyValue("PageStyle").toString();
+        log.info("page style name is: {}", pageStyleName);
         return queryInterface(XPropertySet.class, xPageStyles.getByName(pageStyleName));
     }
 
@@ -136,15 +143,5 @@ public class ExcelSinglePageFilter implements Filter {
         XStyleFamiliesSupplier xStyleFamiliesSupplier = queryInterface(XStyleFamiliesSupplier.class, xSpreadsheetDocument);
         XNameAccess xStyleFamilies = xStyleFamiliesSupplier.getStyleFamilies();
         return queryInterface(XNameAccess.class, xStyleFamilies.getByName("PageStyles"));
-    }
-
-    private static XSpreadsheetDocument getDocument(OfficeContext context, XComponent document, FilterChain chain)
-            throws OfficeException {
-        XSpreadsheetDocument xSpreadsheetDocument = queryInterface(XSpreadsheetDocument.class, document);
-        if (xSpreadsheetDocument == null) {
-            chain.doFilter(context, document);
-            return null;
-        }
-        return xSpreadsheetDocument;
     }
 }
