@@ -29,7 +29,11 @@ import java.util.concurrent.CompletableFuture;
 
 import static com.sun.star.uno.UnoRuntime.queryInterface;
 
-// todo: print range is not handled properly yet
+// todo
+//  known issues
+//  sometime a function cell may return empty string
+//  this is counted in area size as well
+//  (SinglePageSheets does this too)
 public class ExcelSinglePageFilter implements Filter {
     private static final Logger log = LoggerFactory.getLogger(ExcelSinglePageFilter.class);
 
@@ -59,7 +63,9 @@ public class ExcelSinglePageFilter implements Filter {
                 if (isSheetVisible(sheet)) {
                     adjustOneSheet(sheetName, sheet, xPageStyles);
                 } else {
-                    log.info("skipping hidden sheet: {}", sheetName);
+                    log.info("clear print area of hidden sheet: {}", sheetName);
+                    clearPrintArea(sheet);
+                    log.info("skipping other processing of hidden sheet: {}", sheetName);
                 }
             } catch (Exception e) {
                 log.error("Error processing sheet: {}", sheetName, e);
@@ -80,6 +86,8 @@ public class ExcelSinglePageFilter implements Filter {
     private static void adjustOneSheet(String sheetName, XSpreadsheet sheet, XNameAccess xPageStyles)
             throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException, NoSuchElementException, PropertyVetoException {
         XUsedAreaCursor xUsedAreaCursor = goToEnd(sheet);
+
+        clearPrintArea(sheet);
 
         // 使用XCellRangeAddressable接口来获取范围地址
         CellRangeAddress rangeAddress = getCellRangeAddress(xUsedAreaCursor);
@@ -110,6 +118,15 @@ public class ExcelSinglePageFilter implements Filter {
         // 设置缩放比例以适应一页
         // must be short
         xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
+    }
+
+    private static void clearPrintArea(XSpreadsheet sheet) {
+        // If none of the sheets in a document have print areas, the whole sheets are printed.
+        // If any sheet contains print areas, other sheets without print areas are not printed.
+        XPrintAreas xPrintAreas = queryInterface(XPrintAreas.class, sheet);
+        if (xPrintAreas != null) {
+            xPrintAreas.setPrintAreas(new CellRangeAddress[]{});
+        }
     }
 
     private static Size getGraphicalObjectsSize(XSpreadsheet sheet)
