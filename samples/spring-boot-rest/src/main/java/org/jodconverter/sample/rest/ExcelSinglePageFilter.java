@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 
 import static com.sun.star.uno.UnoRuntime.queryInterface;
 
+// todo: print range is not handled properly yet
 public class ExcelSinglePageFilter implements Filter {
     private static final Logger log = LoggerFactory.getLogger(ExcelSinglePageFilter.class);
 
