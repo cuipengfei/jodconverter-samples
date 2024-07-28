@@ -53,7 +53,13 @@ public class ExcelSinglePageFilter implements Filter {
 
                 // 获取当前工作表
                 XSpreadsheet sheet = queryInterface(XSpreadsheet.class, xSpreadsheetDocument.getSheets().getByName(sheetName));
-                adjustOneSheet(sheetName, sheet, xPageStyles);
+
+                // 跳过隐藏的工作表
+                if (isSheetVisible(sheet)) {
+                    adjustOneSheet(sheetName, sheet, xPageStyles);
+                } else {
+                    log.info("skipping hidden sheet: {}", sheetName);
+                }
             } catch (Exception e) {
                 log.error("Error processing sheet: {}", sheetName, e);
             }
@@ -63,6 +69,11 @@ public class ExcelSinglePageFilter implements Filter {
         CompletableFuture.allOf(futures).join();
 
         chain.doFilter(context, document);
+    }
+
+    private static boolean isSheetVisible(XSpreadsheet sheet) throws UnknownPropertyException, WrappedTargetException {
+        XPropertySet xSheetProps = queryInterface(XPropertySet.class, sheet);
+        return (boolean) xSheetProps.getPropertyValue("IsVisible");
     }
 
     private static void adjustOneSheet(String sheetName, XSpreadsheet sheet, XNameAccess xPageStyles)
