@@ -24,6 +24,9 @@ import org.jodconverter.local.filter.FilterChain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
+import java.util.concurrent.CompletableFuture;
+
 import static com.sun.star.uno.UnoRuntime.queryInterface;
 
 public class ExcelSinglePageFilter implements Filter {
@@ -44,13 +47,20 @@ public class ExcelSinglePageFilter implements Filter {
 
         // 遍历每个工作表
         String[] sheetNames = xSpreadsheetDocument.getSheets().getElementNames();
-        for (String sheetName : sheetNames) {
-            log.info("going to process sheet: {}", sheetName);
+        CompletableFuture[] futures = Arrays.stream(sheetNames).map(sheetName -> CompletableFuture.runAsync(() -> {
+            try {
+                log.info("going to process sheet: {}", sheetName);
 
-            // 获取当前工作表
-            XSpreadsheet sheet = queryInterface(XSpreadsheet.class, xSpreadsheetDocument.getSheets().getByName(sheetName));
-            adjustOneSheet(sheetName, sheet, xPageStyles);
-        }
+                // 获取当前工作表
+                XSpreadsheet sheet = queryInterface(XSpreadsheet.class, xSpreadsheetDocument.getSheets().getByName(sheetName));
+                adjustOneSheet(sheetName, sheet, xPageStyles);
+            } catch (Exception e) {
+                log.error("Error processing sheet: {}", sheetName, e);
+            }
+        })).toList().toArray(new CompletableFuture[0]);
+
+        // Wait for all futures to complete
+        CompletableFuture.allOf(futures).join();
 
         chain.doFilter(context, document);
     }
