@@ -94,6 +94,11 @@ public class ExcelSinglePageFilter implements Filter {
         // 获取列和行
         XColumnRowRange columnRowRange = getxColumnRowRange(sheet);
 
+        XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
+//        setFooterText(xPageStyleProps, sheetName, "FirstPageFooterContent");
+//        setFooterText(xPageStyleProps, sheetName, "LeftPageFooterContent");
+        setFooterText(xPageStyleProps, sheetName, "RightPageFooterContent");
+
         log.info("sheet: {} used area column: {}, row: {}", sheetName, rangeAddress.EndColumn, rangeAddress.EndRow);
         // 计算非空列宽度
         int totalWidth = getTotalWidth(columnRowRange, rangeAddress.EndColumn);
@@ -102,7 +107,6 @@ public class ExcelSinglePageFilter implements Filter {
         log.info("sheet: {} used area total width: {}, total height: {}", sheetName, totalWidth, totalHeight);
 
         // Get the header and footer heights
-        XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
         int headerHeight = (int) xPageStyleProps.getPropertyValue("HeaderHeight");
         int footerHeight = (int) xPageStyleProps.getPropertyValue("FooterHeight");
 
@@ -123,6 +127,21 @@ public class ExcelSinglePageFilter implements Filter {
         // 设置缩放比例以适应一页
         // must be short
         xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
+    }
+
+    private static void setFooterText(XPropertySet xPageStyleProps, String sheetName, String pageFooterContent)
+            throws UnknownPropertyException, WrappedTargetException, PropertyVetoException {
+        // Set the left footer content to the sheet name
+        XHeaderFooterContent footerContent = queryInterface(XHeaderFooterContent.class, xPageStyleProps.getPropertyValue(pageFooterContent));
+        if (footerContent != null) {
+            log.info("sheet {} {} has left footer: {}, will change it sheet name", sheetName, pageFooterContent, footerContent.getLeftText().getString());
+//            log.info("sheet {} {} has right footer: {}, will change it sheet name", sheetName, pageFooterContent, footerContent.getRightText().getString());
+//            log.info("sheet {} {} has center footer: {}, will change it sheet name", sheetName, pageFooterContent, footerContent.getCenterText().getString());
+            footerContent.getLeftText().setString(sheetName);
+//            footerContent.getRightText().setString(sheetName);
+//            footerContent.getCenterText().setString(sheetName);
+            xPageStyleProps.setPropertyValue(pageFooterContent, footerContent);
+        }
     }
 
     private static void clearPrintArea(XSpreadsheet sheet) {
