@@ -101,14 +101,19 @@ public class ExcelSinglePageFilter implements Filter {
         int totalHeight = getTotalHeight(columnRowRange, rangeAddress.EndRow);
         log.info("sheet: {} used area total width: {}, total height: {}", sheetName, totalWidth, totalHeight);
 
+        // Get the header and footer heights
+        XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
+        int headerHeight = (int) xPageStyleProps.getPropertyValue("HeaderHeight");
+        int footerHeight = (int) xPageStyleProps.getPropertyValue("FooterHeight");
+
+        // Add header and footer heights to total height
+        totalHeight += headerHeight + footerHeight;
+
         // Include graphical objects in the total dimensions
         Size graphicalSize = getGraphicalObjectsSize(sheet);
         totalWidth = Math.max(totalWidth, graphicalSize.Width);
         totalHeight = Math.max(totalHeight, graphicalSize.Height);
         log.info("sheet: {} final total width: {}, final total height: {}", sheetName, totalWidth, totalHeight);
-
-        // 获取PageStyle
-        XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
 
         // 设置纸张大小和方向
         xPageStyleProps.setPropertyValue("IsLandscape", true); // 设置为横向打印
