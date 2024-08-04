@@ -95,8 +95,7 @@ public class ExcelSinglePageFilter implements Filter {
         XColumnRowRange columnRowRange = getxColumnRowRange(sheet);
 
         XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
-//        setFooterText(xPageStyleProps, sheetName, "FirstPageFooterContent");
-//        setFooterText(xPageStyleProps, sheetName, "LeftPageFooterContent");
+        enableFooter(xPageStyleProps);
         setFooterText(xPageStyleProps, sheetName, "RightPageFooterContent");
 
         log.info("sheet: {} used area column: {}, row: {}", sheetName, rangeAddress.EndColumn, rangeAddress.EndRow);
@@ -129,17 +128,23 @@ public class ExcelSinglePageFilter implements Filter {
         xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
     }
 
+    private static void enableFooter(XPropertySet xPageStyleProps)
+            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
+        xPageStyleProps.setPropertyValue("FooterShared", true);
+        xPageStyleProps.setPropertyValue("FooterIsShared", true);
+        xPageStyleProps.setPropertyValue("FirstPageFooterIsShared", true);
+
+        xPageStyleProps.setPropertyValue("FooterIsOn", true);
+        xPageStyleProps.setPropertyValue("FooterOn", true);
+    }
+
     private static void setFooterText(XPropertySet xPageStyleProps, String sheetName, String pageFooterContent)
             throws UnknownPropertyException, WrappedTargetException, PropertyVetoException {
-        // Set the left footer content to the sheet name
+        // Set the footer content to the sheet name
         XHeaderFooterContent footerContent = queryInterface(XHeaderFooterContent.class, xPageStyleProps.getPropertyValue(pageFooterContent));
         if (footerContent != null) {
-            log.info("sheet {} {} has left footer: {}, will change it sheet name", sheetName, pageFooterContent, footerContent.getLeftText().getString());
-//            log.info("sheet {} {} has right footer: {}, will change it sheet name", sheetName, pageFooterContent, footerContent.getRightText().getString());
-//            log.info("sheet {} {} has center footer: {}, will change it sheet name", sheetName, pageFooterContent, footerContent.getCenterText().getString());
+            log.info("sheet {} {} has footer: {}, will change it sheet name", sheetName, pageFooterContent, footerContent.getLeftText().getString());
             footerContent.getLeftText().setString(sheetName);
-//            footerContent.getRightText().setString(sheetName);
-//            footerContent.getCenterText().setString(sheetName);
             xPageStyleProps.setPropertyValue(pageFooterContent, footerContent);
         }
     }
