@@ -149,6 +149,7 @@ public class ConverterController {
                     LocalConverter.builder()
                             .officeManager(officeManager)
                             .filterChain(new ExcelSinglePageFilter())
+                            .filterChain(new WordFrameFilter())
                             .loadProperties(loadProperties)
                             .storeProperties(storeProperties)
                             .build();
