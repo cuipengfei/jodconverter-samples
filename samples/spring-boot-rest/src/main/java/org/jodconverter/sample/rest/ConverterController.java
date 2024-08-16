@@ -148,8 +148,7 @@ public class ConverterController {
             final DocumentConverter converter =
                     LocalConverter.builder()
                             .officeManager(officeManager)
-                            .filterChain(new ExcelSinglePageFilter())
-                            .filterChain(new WordFrameFilter())
+                            .filterChain(new ExcelSinglePageFilter(), new WordFrameFilter())
                             .loadProperties(loadProperties)
                             .storeProperties(storeProperties)
                             .build();
