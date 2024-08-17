@@ -85,6 +85,7 @@ public class ExcelSinglePageFilter implements Filter {
 
     private static void adjustOneSheet(String sheetName, XSpreadsheet sheet, XNameAccess xPageStyles)
             throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException, NoSuchElementException, PropertyVetoException {
+
         XUsedAreaCursor xUsedAreaCursor = goToEnd(sheet);
 
         clearPrintArea(sheet);
@@ -93,40 +94,54 @@ public class ExcelSinglePageFilter implements Filter {
         CellRangeAddress rangeAddress = getCellRangeAddress(xUsedAreaCursor);
         // 获取列和行
         XColumnRowRange columnRowRange = getxColumnRowRange(sheet);
-
         XPropertySet xPageStyleProps = getPageStyleProps(sheet, xPageStyles);
+
         enableFooter(xPageStyleProps);
         setFooterText(xPageStyleProps, sheetName, "RightPageFooterContent");
 
         log.info("sheet: {} used area column: {}, row: {}", sheetName, rangeAddress.EndColumn, rangeAddress.EndRow);
+
         // 计算非空列宽度
         int totalWidth = getTotalWidth(columnRowRange, rangeAddress.EndColumn);
         // 计算非空行高度
         int totalHeight = getTotalHeight(columnRowRange, rangeAddress.EndRow);
         log.info("sheet: {} used area total width: {}, total height: {}", sheetName, totalWidth, totalHeight);
 
-        // Get the header and footer heights
-        int headerHeight = (int) xPageStyleProps.getPropertyValue("HeaderHeight");
-        int footerHeight = (int) xPageStyleProps.getPropertyValue("FooterHeight");
-
-        // Add header and footer heights to total height
-        totalHeight += headerHeight + footerHeight;
-
         // Include graphical objects in the total dimensions
         Size graphicalSize = getGraphicalObjectsSize(sheet);
         totalWidth = Math.max(totalWidth, graphicalSize.Width);
         totalHeight = Math.max(totalHeight, graphicalSize.Height);
-        log.info("sheet: {} final total width: {}, final total height: {}", sheetName, totalWidth, totalHeight);
+        log.info("sheet: {} add graph total width: {}, add graph total height: {}", sheetName, totalWidth, totalHeight);
+
+        // Add footer heights to total height
+        int footerHeight = Math.max((int) xPageStyleProps.getPropertyValue("FooterHeight"), minFooterHeader());
+        int bottomMargin = Math.max((int) xPageStyleProps.getPropertyValue("BottomMargin"), minMargin());
+        totalHeight += (footerHeight + bottomMargin);
+
+        // add header height to total height if header exists
+        if (isHeaderEnabled(xPageStyleProps)) {
+            int headerHeight = Math.max((int) xPageStyleProps.getPropertyValue("HeaderHeight"), minFooterHeader());
+            int topMargin = Math.max((int) xPageStyleProps.getPropertyValue("TopMargin"), minMargin());
+            totalHeight += (headerHeight + topMargin);
+        }
+
+        // add margin to total width
+        int leftMargin = Math.max((int) xPageStyleProps.getPropertyValue("LeftMargin"), minMargin());
+        int rightMargin = Math.max((int) xPageStyleProps.getPropertyValue("RightMargin"), minMargin());
+        totalWidth += (leftMargin + rightMargin);
+        log.info("sheet: {} add footer/header/margin total width: {}, add footer/header/margin total height: {}", sheetName, totalWidth, totalHeight);
 
         // 设置纸张大小和方向
-        xPageStyleProps.setPropertyValue("IsLandscape", true); // 设置为横向打印
         xPageStyleProps.setPropertyValue("Size", new Size(totalWidth, totalHeight));
+        xPageStyleProps.setPropertyValue("CenterVertically", true);
+        xPageStyleProps.setPropertyValue("CenterHorizontally", true);
         setMarginToZero(xPageStyleProps);
 
         // 设置缩放比例以适应一页
         // must be short
-        xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
+//        xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
     }
+
 
     private static void enableFooter(XPropertySet xPageStyleProps)
             throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
@@ -138,12 +153,17 @@ public class ExcelSinglePageFilter implements Filter {
         xPageStyleProps.setPropertyValue("FooterOn", true);
     }
 
+    private static boolean isHeaderEnabled(XPropertySet xPageStyleProps)
+            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
+        return (boolean) xPageStyleProps.getPropertyValue("HeaderIsOn") || (boolean) xPageStyleProps.getPropertyValue("HeaderOn");
+    }
+
     private static void setFooterText(XPropertySet xPageStyleProps, String sheetName, String pageFooterContent)
             throws UnknownPropertyException, WrappedTargetException, PropertyVetoException {
         // Set the footer content to the sheet name
         XHeaderFooterContent footerContent = queryInterface(XHeaderFooterContent.class, xPageStyleProps.getPropertyValue(pageFooterContent));
         if (footerContent != null) {
-            log.info("sheet {} {} has footer: {}, will change it sheet name", sheetName, pageFooterContent, footerContent.getLeftText().getString());
+            log.info("sheet {} {} has footer: {}, will change it to sheet name", sheetName, pageFooterContent, footerContent.getLeftText().getString());
             footerContent.getLeftText().setString(sheetName);
             xPageStyleProps.setPropertyValue(pageFooterContent, footerContent);
         }
@@ -239,4 +259,33 @@ public class ExcelSinglePageFilter implements Filter {
         XNameAccess xStyleFamilies = xStyleFamiliesSupplier.getStyleFamilies();
         return queryInterface(XNameAccess.class, xStyleFamilies.getByName("PageStyles"));
     }
+
+    private static int minMargin() {
+        return 2100;
+    }
+
+    private static int minFooterHeader() {
+        return 1200;
+    }
+
+//    private static void printHeaderFooterProps(XPropertySet xPageStyleProps) {
+//        String info = Arrays.stream(xPageStyleProps.getPropertySetInfo().getProperties())
+//                .filter(x -> {
+//                    try {
+//                        boolean isAboutHeaderFooter = x.Name.toLowerCase().contains("header") || x.Name.toLowerCase().contains("footer");
+//                        boolean isBoolean = xPageStyleProps.getPropertyValue(x.Name) instanceof Boolean;
+//                        return isBoolean;
+//                    } catch (UnknownPropertyException | WrappedTargetException e) {
+//                        return false;
+//                    }
+//                })
+//                .map(x -> {
+//                    try {
+//                        return x.Name + " is " + xPageStyleProps.getPropertyValue(x.Name);
+//                    } catch (UnknownPropertyException | WrappedTargetException e) {
+//                        return "failed";
+//                    }
+//                }).collect(Collectors.joining("\n"));
+//        log.info(info);
+//    }
 }
