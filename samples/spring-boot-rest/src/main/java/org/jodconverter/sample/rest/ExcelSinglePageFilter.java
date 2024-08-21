@@ -65,7 +65,7 @@ public class ExcelSinglePageFilter implements Filter {
         chain.doFilter(context, document);
     }
 
-    private static boolean isSheetVisible(XSpreadsheet sheet) throws UnknownPropertyException, WrappedTargetException {
+    private boolean isSheetVisible(XSpreadsheet sheet) throws UnknownPropertyException, WrappedTargetException {
         XPropertySet xSheetProps = queryInterface(XPropertySet.class, sheet);
         return (boolean) xSheetProps.getPropertyValue("IsVisible");
     }
@@ -128,19 +128,19 @@ public class ExcelSinglePageFilter implements Filter {
         return (int) rowProps.getPropertyValue("Height");
     }
 
-    private static XUsedAreaCursor goToEnd(XSpreadsheet sheet) {
+    private XUsedAreaCursor goToEnd(XSpreadsheet sheet) {
         XSheetCellCursor xSheetCellCursor = sheet.createCursor();
         XUsedAreaCursor xUsedAreaCursor = queryInterface(XUsedAreaCursor.class, xSheetCellCursor);
         xUsedAreaCursor.gotoEndOfUsedArea(true); // 定位到使用过的区域
         return xUsedAreaCursor;
     }
 
-    private static CellRangeAddress getCellRangeAddress(XUsedAreaCursor xUsedAreaCursor) {
+    private CellRangeAddress getCellRangeAddress(XUsedAreaCursor xUsedAreaCursor) {
         XCellRangeAddressable rangeAddressable = queryInterface(XCellRangeAddressable.class, xUsedAreaCursor);
         return rangeAddressable.getRangeAddress();
     }
 
-    private static XColumnRowRange getxColumnRowRange(XSpreadsheet sheet) {
+    private XColumnRowRange getxColumnRowRange(XSpreadsheet sheet) {
         XCellRange cellRange = queryInterface(XCellRange.class, sheet);
         return queryInterface(XColumnRowRange.class, cellRange);
     }
@@ -167,7 +167,7 @@ public class ExcelSinglePageFilter implements Filter {
         return totalHeight;
     }
 
-    private static void clearPrintArea(XSpreadsheet sheet) {
+    private void clearPrintArea(XSpreadsheet sheet) {
         // If none of the sheets in a document have print areas, the whole sheets are printed.
         // If any sheet contains print areas, other sheets without print areas are not printed.
         XPrintAreas xPrintAreas = queryInterface(XPrintAreas.class, sheet);
@@ -176,14 +176,14 @@ public class ExcelSinglePageFilter implements Filter {
         }
     }
 
-    private static XPropertySet getPageStyleProps(XSpreadsheet sheet, XNameAccess xPageStyles)
+    private XPropertySet getPageStyleProps(XSpreadsheet sheet, XNameAccess xPageStyles)
             throws UnknownPropertyException, WrappedTargetException, NoSuchElementException {
         String pageStyleName = queryInterface(XPropertySet.class, sheet).getPropertyValue("PageStyle").toString();
         log.info("page style name is: {}", pageStyleName);
         return queryInterface(XPropertySet.class, xPageStyles.getByName(pageStyleName));
     }
 
-    private static XNameAccess getPageStyles(XSpreadsheetDocument xSpreadsheetDocument)
+    private XNameAccess getPageStyles(XSpreadsheetDocument xSpreadsheetDocument)
             throws NoSuchElementException, WrappedTargetException {
         XStyleFamiliesSupplier xStyleFamiliesSupplier = queryInterface(XStyleFamiliesSupplier.class, xSpreadsheetDocument);
         XNameAccess xStyleFamilies = xStyleFamiliesSupplier.getStyleFamilies();
@@ -271,15 +271,15 @@ public class ExcelSinglePageFilter implements Filter {
         xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
     }
 
-    private static int minMargin() {
+    private int minMargin() {
         return 2100;
     }
 
-    private static int minFooterHeader() {
+    private int minFooterHeader() {
         return 1200;
     }
 
-//    private static void printHeaderFooterProps(XPropertySet xPageStyleProps) {
+//    private  void printHeaderFooterProps(XPropertySet xPageStyleProps) {
 //        String info = Arrays.stream(xPageStyleProps.getPropertySetInfo().getProperties())
 //                .filter(x -> {
 //                    try {
