@@ -15,9 +15,7 @@ import com.sun.star.lang.WrappedTargetException;
 import com.sun.star.lang.XComponent;
 import com.sun.star.sheet.*;
 import com.sun.star.style.XStyleFamiliesSupplier;
-import com.sun.star.table.CellRangeAddress;
-import com.sun.star.table.XCellRange;
-import com.sun.star.table.XColumnRowRange;
+import com.sun.star.table.*;
 import org.jodconverter.core.office.OfficeContext;
 import org.jodconverter.local.filter.Filter;
 import org.jodconverter.local.filter.FilterChain;
@@ -29,11 +27,6 @@ import java.util.concurrent.CompletableFuture;
 
 import static com.sun.star.uno.UnoRuntime.queryInterface;
 
-// todo
-//  known issues
-//  sometime a function cell may return empty string
-//  this is counted in area size as well
-//  (SinglePageSheets does this too)
 public class ExcelSinglePageFilter implements Filter {
     private static final Logger log = LoggerFactory.getLogger(ExcelSinglePageFilter.class);
 
@@ -91,19 +84,87 @@ public class ExcelSinglePageFilter implements Filter {
 
         log.info("Sheet: {} used area column: {}, row: {}", sheetName, rangeAddress.EndColumn, rangeAddress.EndRow);
 
-        int totalWidth = getTotalWidth(columnRowRange, rangeAddress.EndColumn);
-        int totalHeight = getTotalHeight(columnRowRange, rangeAddress.EndRow);
+        XTableColumns columns = columnRowRange.getColumns();
+        XTableRows rows = columnRowRange.getRows();
+
+        int totalWidth = getTotalWidth(rangeAddress.EndColumn, columns);
+        int totalHeight = getTotalHeight(rangeAddress.EndRow, rows);
         log.info("Sheet: {} used area total width: {}, total height: {}", sheetName, totalWidth, totalHeight);
 
         Size graphicalSize = getGraphicalObjectsSize(sheet);
-        totalWidth = Math.max(totalWidth, graphicalSize.Width);
-        totalHeight = Math.max(totalHeight, graphicalSize.Height);
-        log.info("Sheet: {} add graph total width: {}, add graph total height: {}", sheetName, totalWidth, totalHeight);
+
+        // Adjust totalWidth and totalHeight to accommodate graphical objects
+        while (totalWidth < graphicalSize.Width || totalHeight < graphicalSize.Height) {
+            if (totalWidth < graphicalSize.Width) {
+                int newColumnWidth = getColumnWidth(rangeAddress.EndColumn + 1, columns);
+                totalWidth += newColumnWidth;
+                rangeAddress.EndColumn++;
+            }
+            if (totalHeight < graphicalSize.Height) {
+                int newRowHeight = getRowHeight(rangeAddress.EndRow + 1, rows);
+                totalHeight += newRowHeight;
+                rangeAddress.EndRow++;
+            }
+        }
+        log.info("Sheet: {} adjusted total width: {}, adjusted total height: {}", sheetName, totalWidth, totalHeight);
 
         totalHeight += calculateFooterHeaderHeight(xPageStyleProps);
         totalWidth += calculateMargins(xPageStyleProps);
 
         setPaperSizeAndPosition(xPageStyleProps, totalWidth, totalHeight);
+    }
+
+    private int getColumnWidth(int columnIndex, XTableColumns columns)
+            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
+        Object column = columns.getByIndex(columnIndex);
+        XPropertySet columnProps = queryInterface(XPropertySet.class, column);
+        return (int) columnProps.getPropertyValue("Width");
+    }
+
+    private int getRowHeight(int rowIndex, XTableRows rows)
+            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
+        Object row = rows.getByIndex(rowIndex);
+        XPropertySet rowProps = queryInterface(XPropertySet.class, row);
+        return (int) rowProps.getPropertyValue("Height");
+    }
+
+    private static XUsedAreaCursor goToEnd(XSpreadsheet sheet) {
+        XSheetCellCursor xSheetCellCursor = sheet.createCursor();
+        XUsedAreaCursor xUsedAreaCursor = queryInterface(XUsedAreaCursor.class, xSheetCellCursor);
+        xUsedAreaCursor.gotoEndOfUsedArea(true); // 定位到使用过的区域
+        return xUsedAreaCursor;
+    }
+
+    private static CellRangeAddress getCellRangeAddress(XUsedAreaCursor xUsedAreaCursor) {
+        XCellRangeAddressable rangeAddressable = queryInterface(XCellRangeAddressable.class, xUsedAreaCursor);
+        return rangeAddressable.getRangeAddress();
+    }
+
+    private static XColumnRowRange getxColumnRowRange(XSpreadsheet sheet) {
+        XCellRange cellRange = queryInterface(XCellRange.class, sheet);
+        return queryInterface(XColumnRowRange.class, cellRange);
+    }
+
+    private int getTotalWidth(int endColumn, XTableColumns columns)
+            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
+        int totalWidth = 0;
+        for (int j = 0; j <= endColumn; j++) {
+            Object column = columns.getByIndex(j);
+            XPropertySet columnProps = queryInterface(XPropertySet.class, column);
+            totalWidth += (int) columnProps.getPropertyValue("Width");
+        }
+        return totalWidth;
+    }
+
+    private int getTotalHeight(int endRow, XTableRows rows)
+            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
+        int totalHeight = 0;
+        for (int i = 0; i <= endRow; i++) {
+            Object row = rows.getByIndex(i);
+            XPropertySet rowProps = queryInterface(XPropertySet.class, row);
+            totalHeight += (int) rowProps.getPropertyValue("Height");
+        }
+        return totalHeight;
     }
 
     private static void clearPrintArea(XSpreadsheet sheet) {
@@ -120,23 +181,6 @@ public class ExcelSinglePageFilter implements Filter {
         String pageStyleName = queryInterface(XPropertySet.class, sheet).getPropertyValue("PageStyle").toString();
         log.info("page style name is: {}", pageStyleName);
         return queryInterface(XPropertySet.class, xPageStyles.getByName(pageStyleName));
-    }
-
-    private static XColumnRowRange getxColumnRowRange(XSpreadsheet sheet) {
-        XCellRange cellRange = queryInterface(XCellRange.class, sheet);
-        return queryInterface(XColumnRowRange.class, cellRange);
-    }
-
-    private static CellRangeAddress getCellRangeAddress(XUsedAreaCursor xUsedAreaCursor) {
-        XCellRangeAddressable rangeAddressable = queryInterface(XCellRangeAddressable.class, xUsedAreaCursor);
-        return rangeAddressable.getRangeAddress();
-    }
-
-    private static XUsedAreaCursor goToEnd(XSpreadsheet sheet) {
-        XSheetCellCursor xSheetCellCursor = sheet.createCursor();
-        XUsedAreaCursor xUsedAreaCursor = queryInterface(XUsedAreaCursor.class, xSheetCellCursor);
-        xUsedAreaCursor.gotoEndOfUsedArea(true); // 定位到使用过的区域
-        return xUsedAreaCursor;
     }
 
     private static XNameAccess getPageStyles(XSpreadsheetDocument xSpreadsheetDocument)
@@ -190,28 +234,6 @@ public class ExcelSinglePageFilter implements Filter {
         int leftMargin = Math.max((int) xPageStyleProps.getPropertyValue("LeftMargin"), minMargin());
         int rightMargin = Math.max((int) xPageStyleProps.getPropertyValue("RightMargin"), minMargin());
         return leftMargin + rightMargin;
-    }
-
-    private int getTotalWidth(XColumnRowRange columnRowRange, int endColumn)
-            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
-        int totalWidth = 0;
-        for (int j = 0; j <= endColumn; j++) {
-            Object column = columnRowRange.getColumns().getByIndex(j);
-            XPropertySet columnProps = queryInterface(XPropertySet.class, column);
-            totalWidth += (int) columnProps.getPropertyValue("Width");
-        }
-        return totalWidth;
-    }
-
-    private int getTotalHeight(XColumnRowRange columnRowRange, int endRow)
-            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
-        int totalHeight = 0;
-        for (int i = 0; i <= endRow; i++) {
-            Object row = columnRowRange.getRows().getByIndex(i);
-            XPropertySet rowProps = queryInterface(XPropertySet.class, row);
-            totalHeight += (int) rowProps.getPropertyValue("Height");
-        }
-        return totalHeight;
     }
 
     private Size getGraphicalObjectsSize(XSpreadsheet sheet)
