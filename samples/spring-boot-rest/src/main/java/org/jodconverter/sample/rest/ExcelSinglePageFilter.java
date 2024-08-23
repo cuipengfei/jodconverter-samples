@@ -92,7 +92,7 @@ public class ExcelSinglePageFilter implements Filter {
 
         XTableColumns columns = columnRowRange.getColumns();
         XTableRows rows = columnRowRange.getRows();
-        preventImageOverlapText(rows);
+        triggerReLayout(rows, columns);
 
         int totalWidth = getTotalWidth(rangeAddress.EndColumn, columns);
         int totalHeight = getTotalHeight(rangeAddress.EndRow, rows);
@@ -127,7 +127,9 @@ public class ExcelSinglePageFilter implements Filter {
      * recalculate the positions of all elements, including images.
      * This recalculation helps to ensure that images are properly positioned and do not overlap with the text.
      **/
-    private static void preventImageOverlapText(XTableRows rows) {
+    private static void triggerReLayout(XTableRows rows, XTableColumns columns) {
+        columns.insertByIndex(0, 1);
+        columns.removeByIndex(0, 1);
         rows.insertByIndex(0, 1);
         rows.removeByIndex(0, 1);
     }
