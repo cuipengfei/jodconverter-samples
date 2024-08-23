@@ -2,20 +2,25 @@ package org.jodconverter.sample.rest;
 
 import com.sun.star.awt.Point;
 import com.sun.star.awt.Size;
-import com.sun.star.beans.PropertyVetoException;
-import com.sun.star.beans.UnknownPropertyException;
 import com.sun.star.beans.XPropertySet;
-import com.sun.star.container.NoSuchElementException;
 import com.sun.star.container.XNameAccess;
 import com.sun.star.drawing.XDrawPage;
 import com.sun.star.drawing.XDrawPageSupplier;
 import com.sun.star.drawing.XShape;
-import com.sun.star.lang.IndexOutOfBoundsException;
-import com.sun.star.lang.WrappedTargetException;
 import com.sun.star.lang.XComponent;
-import com.sun.star.sheet.*;
+import com.sun.star.sheet.XCellRangeAddressable;
+import com.sun.star.sheet.XHeaderFooterContent;
+import com.sun.star.sheet.XPrintAreas;
+import com.sun.star.sheet.XSheetCellCursor;
+import com.sun.star.sheet.XSpreadsheet;
+import com.sun.star.sheet.XSpreadsheetDocument;
+import com.sun.star.sheet.XUsedAreaCursor;
 import com.sun.star.style.XStyleFamiliesSupplier;
-import com.sun.star.table.*;
+import com.sun.star.table.CellRangeAddress;
+import com.sun.star.table.XCellRange;
+import com.sun.star.table.XColumnRowRange;
+import com.sun.star.table.XTableColumns;
+import com.sun.star.table.XTableRows;
 import org.jodconverter.core.office.OfficeContext;
 import org.jodconverter.local.filter.Filter;
 import org.jodconverter.local.filter.FilterChain;
@@ -65,7 +70,8 @@ public class ExcelSinglePageFilter implements Filter {
         chain.doFilter(context, document);
     }
 
-    private boolean isSheetVisible(XSpreadsheet sheet) throws UnknownPropertyException, WrappedTargetException {
+    private boolean isSheetVisible(XSpreadsheet sheet)
+            throws com.sun.star.uno.Exception {
         XPropertySet xSheetProps = queryInterface(XPropertySet.class, sheet);
         return (boolean) xSheetProps.getPropertyValue("IsVisible");
     }
@@ -86,6 +92,7 @@ public class ExcelSinglePageFilter implements Filter {
 
         XTableColumns columns = columnRowRange.getColumns();
         XTableRows rows = columnRowRange.getRows();
+        preventImageOverlapText(rows);
 
         int totalWidth = getTotalWidth(rangeAddress.EndColumn, columns);
         int totalHeight = getTotalHeight(rangeAddress.EndRow, rows);
@@ -108,21 +115,32 @@ public class ExcelSinglePageFilter implements Filter {
         }
         log.info("Sheet: {} adjusted total width: {}, adjusted total height: {}", sheetName, totalWidth, totalHeight);
 
-        totalHeight += calculateFooterHeaderHeight(xPageStyleProps);
-        totalWidth += calculateMargins(xPageStyleProps);
+        totalHeight += 4000;
+        totalWidth += 2000;
 
         setPaperSizeAndPosition(xPageStyleProps, totalWidth, totalHeight);
     }
 
+    /**
+     * The purpose of these operations is to trigger a re-layout of the spreadsheet.
+     * By temporarily inserting and then removing a row, the method forces the spreadsheet to
+     * recalculate the positions of all elements, including images.
+     * This recalculation helps to ensure that images are properly positioned and do not overlap with the text.
+     **/
+    private static void preventImageOverlapText(XTableRows rows) {
+        rows.insertByIndex(0, 1);
+        rows.removeByIndex(0, 1);
+    }
+
     private int getColumnWidth(int columnIndex, XTableColumns columns)
-            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
+            throws com.sun.star.uno.Exception {
         Object column = columns.getByIndex(columnIndex);
         XPropertySet columnProps = queryInterface(XPropertySet.class, column);
         return (int) columnProps.getPropertyValue("Width");
     }
 
     private int getRowHeight(int rowIndex, XTableRows rows)
-            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
+            throws com.sun.star.uno.Exception {
         Object row = rows.getByIndex(rowIndex);
         XPropertySet rowProps = queryInterface(XPropertySet.class, row);
         return (int) rowProps.getPropertyValue("Height");
@@ -146,7 +164,7 @@ public class ExcelSinglePageFilter implements Filter {
     }
 
     private int getTotalWidth(int endColumn, XTableColumns columns)
-            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
+            throws com.sun.star.uno.Exception {
         int totalWidth = 0;
         for (int j = 0; j <= endColumn; j++) {
             Object column = columns.getByIndex(j);
@@ -157,7 +175,7 @@ public class ExcelSinglePageFilter implements Filter {
     }
 
     private int getTotalHeight(int endRow, XTableRows rows)
-            throws com.sun.star.lang.IndexOutOfBoundsException, WrappedTargetException, UnknownPropertyException {
+            throws com.sun.star.uno.Exception {
         int totalHeight = 0;
         for (int i = 0; i <= endRow; i++) {
             Object row = rows.getByIndex(i);
@@ -177,21 +195,21 @@ public class ExcelSinglePageFilter implements Filter {
     }
 
     private XPropertySet getPageStyleProps(XSpreadsheet sheet, XNameAccess xPageStyles)
-            throws UnknownPropertyException, WrappedTargetException, NoSuchElementException {
+            throws com.sun.star.uno.Exception {
         String pageStyleName = queryInterface(XPropertySet.class, sheet).getPropertyValue("PageStyle").toString();
         log.info("page style name is: {}", pageStyleName);
         return queryInterface(XPropertySet.class, xPageStyles.getByName(pageStyleName));
     }
 
     private XNameAccess getPageStyles(XSpreadsheetDocument xSpreadsheetDocument)
-            throws NoSuchElementException, WrappedTargetException {
+            throws com.sun.star.uno.Exception {
         XStyleFamiliesSupplier xStyleFamiliesSupplier = queryInterface(XStyleFamiliesSupplier.class, xSpreadsheetDocument);
         XNameAccess xStyleFamilies = xStyleFamiliesSupplier.getStyleFamilies();
         return queryInterface(XNameAccess.class, xStyleFamilies.getByName("PageStyles"));
     }
 
     private void enableFooter(XPropertySet xPageStyleProps)
-            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
+            throws com.sun.star.uno.Exception {
         xPageStyleProps.setPropertyValue("FooterShared", true);
         xPageStyleProps.setPropertyValue("FooterIsShared", true);
         xPageStyleProps.setPropertyValue("FirstPageFooterIsShared", true);
@@ -201,7 +219,7 @@ public class ExcelSinglePageFilter implements Filter {
     }
 
     private void setFooterText(XPropertySet xPageStyleProps, String sheetName, String pageFooterContent)
-            throws UnknownPropertyException, WrappedTargetException, PropertyVetoException {
+            throws com.sun.star.uno.Exception {
         XHeaderFooterContent footerContent = queryInterface(XHeaderFooterContent.class, xPageStyleProps.getPropertyValue(pageFooterContent));
         if (footerContent != null) {
             log.info("Sheet {} {} has footer: {}, will change it to sheet name", sheetName, pageFooterContent, footerContent.getLeftText().getString());
@@ -210,34 +228,8 @@ public class ExcelSinglePageFilter implements Filter {
         }
     }
 
-    private int calculateFooterHeaderHeight(XPropertySet xPageStyleProps)
-            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
-        int footerHeight = Math.max((int) xPageStyleProps.getPropertyValue("FooterHeight"), minFooterHeader());
-        int bottomMargin = Math.max((int) xPageStyleProps.getPropertyValue("BottomMargin"), minMargin());
-
-        if (isHeaderEnabled(xPageStyleProps)) {
-            int headerHeight = Math.max((int) xPageStyleProps.getPropertyValue("HeaderHeight"), minFooterHeader());
-            int topMargin = Math.max((int) xPageStyleProps.getPropertyValue("TopMargin"), minMargin());
-            return footerHeight + bottomMargin + headerHeight + topMargin;
-        } else {
-            return footerHeight + bottomMargin;
-        }
-    }
-
-    private boolean isHeaderEnabled(XPropertySet xPageStyleProps)
-            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
-        return (boolean) xPageStyleProps.getPropertyValue("HeaderIsOn") || (boolean) xPageStyleProps.getPropertyValue("HeaderOn");
-    }
-
-    private int calculateMargins(XPropertySet xPageStyleProps)
-            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
-        int leftMargin = Math.max((int) xPageStyleProps.getPropertyValue("LeftMargin"), minMargin());
-        int rightMargin = Math.max((int) xPageStyleProps.getPropertyValue("RightMargin"), minMargin());
-        return leftMargin + rightMargin;
-    }
-
     private Size getGraphicalObjectsSize(XSpreadsheet sheet)
-            throws WrappedTargetException, IndexOutOfBoundsException {
+            throws com.sun.star.uno.Exception {
         XDrawPageSupplier drawPageSupplier = queryInterface(XDrawPageSupplier.class, sheet);
         XDrawPage drawPage = drawPageSupplier.getDrawPage();
         int count = drawPage.getCount();
@@ -258,33 +250,43 @@ public class ExcelSinglePageFilter implements Filter {
     }
 
     private void setPaperSizeAndPosition(XPropertySet xPageStyleProps, int totalWidth, int totalHeight)
-            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
-        xPageStyleProps.setPropertyValue("Size", new Size(totalWidth, totalHeight));
+            throws com.sun.star.uno.Exception {
         xPageStyleProps.setPropertyValue("CenterVertically", true);
         xPageStyleProps.setPropertyValue("CenterHorizontally", true);
-        xPageStyleProps.setPropertyValue("TopMargin", 0);
-        xPageStyleProps.setPropertyValue("BottomMargin", 0);
-        xPageStyleProps.setPropertyValue("RightMargin", 0);
+
+        xPageStyleProps.setPropertyValue("TopMargin", 1000);
+        xPageStyleProps.setPropertyValue("HeaderBodyDistance", 0);
+        xPageStyleProps.setPropertyValue("HeaderHeight", 0);
+
+        xPageStyleProps.setPropertyValue("BottomMargin", 1000);
+        xPageStyleProps.setPropertyValue("FooterBodyDistance", 0);
+        xPageStyleProps.setPropertyValue("FooterHeight", 0);
+
         xPageStyleProps.setPropertyValue("LeftMargin", 0);
+        xPageStyleProps.setPropertyValue("RightMargin", 0);
+
+        xPageStyleProps.setPropertyValue("Size", new Size(totalWidth, totalHeight));
+
         // 设置缩放比例以适应一页
         // must be short
         xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
     }
 
-    private int minMargin() {
-        return 2100;
-    }
-
-    private int minFooterHeader() {
-        return 1200;
-    }
-
-//    private  void printHeaderFooterProps(XPropertySet xPageStyleProps) {
+//
+//    private int minMargin() {
+//        return 1000;
+//    }
+//
+//    private int minFooterHeader() {
+//        return 3000;
+//    }
+//
+//    private void printHeaderFooterProps(XPropertySet xPageStyleProps) {
 //        String info = Arrays.stream(xPageStyleProps.getPropertySetInfo().getProperties())
 //                .filter(x -> {
 //                    try {
 //                        boolean isAboutHeaderFooter = x.Name.toLowerCase().contains("header") || x.Name.toLowerCase().contains("footer");
-//                        boolean isBoolean = xPageStyleProps.getPropertyValue(x.Name) instanceof Boolean;
+//                        boolean isBoolean = xPageStyleProps.getPropertyValue(x.Name) instanceof Integer;
 //                        return isBoolean;
 //                    } catch (UnknownPropertyException | WrappedTargetException e) {
 //                        return false;
@@ -296,7 +298,33 @@ public class ExcelSinglePageFilter implements Filter {
 //                    } catch (UnknownPropertyException | WrappedTargetException e) {
 //                        return "failed";
 //                    }
-//                }).collect(Collectors.joining("\n"));
+//                }).collect(joining("\n"));
 //        log.info(info);
+//    }
+//
+//    private int calculateFooterHeaderHeight(XPropertySet xPageStyleProps)
+//            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
+//        int footerHeight = Math.max((int) xPageStyleProps.getPropertyValue("FooterHeight"), minFooterHeader());
+//        int bottomMargin = Math.max((int) xPageStyleProps.getPropertyValue("BottomMargin"), minMargin());
+//
+//        if (isHeaderEnabled(xPageStyleProps)) {
+//            int headerHeight = Math.max((int) xPageStyleProps.getPropertyValue("HeaderHeight"), minFooterHeader());
+//            int topMargin = Math.max((int) xPageStyleProps.getPropertyValue("TopMargin"), minMargin());
+//            return footerHeight + bottomMargin + headerHeight + topMargin;
+//        } else {
+//            return footerHeight + bottomMargin;
+//        }
+//    }
+//
+//    private int calculateMargins(XPropertySet xPageStyleProps)
+//            throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
+//        int leftMargin = Math.max((int) xPageStyleProps.getPropertyValue("LeftMargin"), minMargin());
+//        int rightMargin = Math.max((int) xPageStyleProps.getPropertyValue("RightMargin"), minMargin());
+//        return leftMargin + rightMargin;
+//    }
+
+//    private boolean isHeaderEnabled(XPropertySet xPageStyleProps)
+//            throws com.sun.star.uno.Exception {
+//        return (boolean) xPageStyleProps.getPropertyValue("HeaderIsOn") || (boolean) xPageStyleProps.getPropertyValue("HeaderOn");
 //    }
 }
