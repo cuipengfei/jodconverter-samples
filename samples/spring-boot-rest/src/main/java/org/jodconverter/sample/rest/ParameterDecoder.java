@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Map.Entry;
 
 @Service
 public class ParameterDecoder {
@@ -32,7 +33,7 @@ public class ParameterDecoder {
         final Map<String, Object> loadFilterDataProperties = new HashMap<>();
         final Map<String, Object> storeFilterDataProperties = new HashMap<>();
 
-        for (final Map.Entry<String, String> param : parameters.entrySet()) {
+        for (final Entry<String, String> param : parameters.entrySet()) {
             final String key = param.getKey().toLowerCase(Locale.ROOT);
             if (!this.addProperty(key, LOAD_FILTER_DATA_PREFIX_PARAM, param, loadFilterDataProperties) &&
                     !this.addProperty(key, LOAD_PROPERTIES_PREFIX_PARAM, param, loadProperties) &&
@@ -53,7 +54,7 @@ public class ParameterDecoder {
     private boolean addProperty(
             final String key,
             final String prefix,
-            final Map.Entry<String, String> param,
+            final Entry<String, String> param,
             final Map<String, Object> properties) {
         if (key.startsWith(prefix)) {
             this.addProperty(prefix, param, properties);
@@ -64,7 +65,7 @@ public class ParameterDecoder {
 
     private void addProperty(
             final String prefix,
-            final Map.Entry<String, String> param,
+            final Entry<String, String> param,
             final Map<String, Object> properties) {
 
         final String name = param.getKey().substring(prefix.length());

@@ -1,6 +1,6 @@
 server:
   port: 8080
-  
+
 spring:
   servlet:
     multipart:
@@ -23,6 +23,12 @@ jodconverter:
   local:
     enabled: true
     port-numbers: 2002,2003
+    process-retry-interval: 1000
+    # ↑ delay, in milliseconds, between each try when trying to execute an office process call (start/terminate).
+    max-tasks-per-process: 20
+    # ↑ the maximum number of tasks an office process can execute before restarting
+    task-queue-timeout: 60000
+    # ↑ maximum living time of a task in the conversion queue, 60 secs
     template-profile-dir: /tmp/jodconverter
     format-options:
       html:
