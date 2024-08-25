@@ -75,7 +75,7 @@ public class WordFrameFilter implements Filter {
                     xProps.setPropertyValue("BackColorTransparency", 0);
                 }
             } catch (Exception e) {
-                log.error("error handing frame", e);
+                log.error("error handling frame", e);
             }
         }
     }
