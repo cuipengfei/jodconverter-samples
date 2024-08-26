@@ -28,6 +28,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
 import static com.sun.star.uno.UnoRuntime.queryInterface;
@@ -241,6 +242,8 @@ public class ExcelSinglePageFilter implements Filter {
 
         for (int i = 0; i < count; i++) {
             XShape shape = queryInterface(XShape.class, drawPage.getByIndex(i));
+            addGlowForTinyImage(shape);
+
             Point position = shape.getPosition();
             Size size = shape.getSize();
 
@@ -249,6 +252,26 @@ public class ExcelSinglePageFilter implements Filter {
         }
 
         return new Size(maxWidth, maxHeight);
+    }
+
+    /**
+     * Add glow effect for tiny image. The image is considered tiny if its width or height is less than 5mm.
+     * Adding flow will make it visible when rendered by pdf.js, otherwise you can not see it in pdf.js.
+     */
+    private void addGlowForTinyImage(XShape shape)
+            throws com.sun.star.uno.Exception {
+        if (Objects.equals(shape.getShapeType(), "com.sun.star.drawing.GraphicObjectShape")) {
+            Size size = shape.getSize();
+            boolean isSmallerThan5mm = size.Width <= 500 || size.Height <= 500;
+            if (isSmallerThan5mm) {
+                XPropertySet shapeProps = queryInterface(XPropertySet.class, shape);
+                Object radius = shapeProps.getPropertyValue("GlowEffectRadius");
+                if ((int) radius == 0) {
+                    shapeProps.setPropertyValue("GlowEffectRadius", 1);
+                    shapeProps.setPropertyValue("GlowEffectColor", 4485828);
+                }
+            }
+        }
     }
 
     private void setPaperSizeAndPosition(XPropertySet xPageStyleProps, int totalWidth, int totalHeight)
@@ -274,7 +297,7 @@ public class ExcelSinglePageFilter implements Filter {
         xPageStyleProps.setPropertyValue("ScaleToPages", (short) 1);
     }
 
-//
+    //
 //    private int minMargin() {
 //        return 1000;
 //    }
@@ -283,17 +306,9 @@ public class ExcelSinglePageFilter implements Filter {
 //        return 3000;
 //    }
 //
-//    private void printHeaderFooterProps(XPropertySet xPageStyleProps) {
+//    private void printProps(XPropertySet xPageStyleProps) {
 //        String info = Arrays.stream(xPageStyleProps.getPropertySetInfo().getProperties())
-//                .filter(x -> {
-//                    try {
-//                        boolean isAboutHeaderFooter = x.Name.toLowerCase().contains("header") || x.Name.toLowerCase().contains("footer");
-//                        boolean isBoolean = xPageStyleProps.getPropertyValue(x.Name) instanceof Integer;
-//                        return isBoolean;
-//                    } catch (UnknownPropertyException | WrappedTargetException e) {
-//                        return false;
-//                    }
-//                })
+//                .filter(x -> true)
 //                .map(x -> {
 //                    try {
 //                        return x.Name + " is " + xPageStyleProps.getPropertyValue(x.Name);
