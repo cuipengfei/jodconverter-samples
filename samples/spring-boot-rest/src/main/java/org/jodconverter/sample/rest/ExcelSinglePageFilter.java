@@ -256,7 +256,7 @@ public class ExcelSinglePageFilter implements Filter {
 
     /**
      * Add glow effect for tiny image. The image is considered tiny if its width or height is less than 5mm.
-     * Adding flow will make it visible when rendered by pdf.js, otherwise you can not see it in pdf.js.
+     * Adding glow will make it visible when rendered by pdf.js, otherwise you can not see it in pdf.js.
      */
     private void addGlowForTinyImage(XShape shape)
             throws com.sun.star.uno.Exception {
