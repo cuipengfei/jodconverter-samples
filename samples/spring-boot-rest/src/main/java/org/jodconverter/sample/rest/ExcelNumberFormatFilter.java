@@ -3,7 +3,6 @@ package org.jodconverter.sample.rest;
 import com.sun.star.beans.PropertyVetoException;
 import com.sun.star.beans.UnknownPropertyException;
 import com.sun.star.beans.XPropertySet;
-import com.sun.star.frame.XStorable;
 import com.sun.star.lang.Locale;
 import com.sun.star.lang.WrappedTargetException;
 import com.sun.star.lang.XComponent;
@@ -19,14 +18,10 @@ import org.jodconverter.local.filter.FilterChain;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.Date;
 
 import static com.sun.star.table.CellContentType.VALUE;
 import static com.sun.star.uno.UnoRuntime.queryInterface;
-import static java.util.stream.Collectors.joining;
 
 public class ExcelNumberFormatFilter implements Filter {
     private static final Logger log = LoggerFactory.getLogger(ExcelNumberFormatFilter.class);
@@ -48,13 +43,6 @@ public class ExcelNumberFormatFilter implements Filter {
                 processSheet(sheet, xNumberFormats);
             }
         }
-//
-//        // Save the processed result into a file
-//        XStorable xStorable = queryInterface(XStorable.class, document);
-//        if (xStorable != null) {
-//            String outputPath = "file:///" + new File("output_" + Math.abs(new Date().hashCode()) + ".ods").getAbsolutePath().replace("\\", "/");
-//            xStorable.storeAsURL(outputPath, new com.sun.star.beans.PropertyValue[0]);
-//        }
 
         chain.doFilter(context, document);
     }
@@ -66,11 +54,8 @@ public class ExcelNumberFormatFilter implements Filter {
 
         CellRangeAddress rangeAddress = getCellRangeAddress(usedAreaCursor);
 
-        int endColumn = rangeAddress.EndColumn;
-        int endRow = rangeAddress.EndRow;
-
-        for (int col = 0; col <= endColumn; col++) {
-            for (int row = 0; row <= endRow; row++) {
+        for (int col = 0; col <= rangeAddress.EndColumn; col++) {
+            for (int row = 0; row <= rangeAddress.EndRow; row++) {
                 XCell cell = sheet.getCellByPosition(col, row);
                 processCell(cell, xNumberFormats);
             }
@@ -81,8 +66,8 @@ public class ExcelNumberFormatFilter implements Filter {
         try {
             if (cell.getType() == VALUE) {
                 XPropertySet cellProps = queryInterface(XPropertySet.class, cell);
-                int formatID = AnyConverter.toInt(cellProps.getPropertyValue("NumberFormat"));
-                XPropertySet numberFormat = xNumberFormats.getByKey(formatID);
+                int key = AnyConverter.toInt(cellProps.getPropertyValue("NumberFormat"));
+                XPropertySet numberFormat = xNumberFormats.getByKey(key);
                 Locale locale = (Locale) numberFormat.getPropertyValue("Locale");
                 String formatString = numberFormat.getPropertyValue("FormatString").toString();
 
@@ -96,24 +81,20 @@ public class ExcelNumberFormatFilter implements Filter {
 
                     if (isInteger && totalDigits >= 12) {
                         String newFormat = "0.00000E+00";
-                        int newFormatID = xNumberFormats.queryKey(newFormat, locale, false);
+                        int newFormatID = xNumberFormats.queryKey(newFormat, locale, true);
                         if (newFormatID == -1) {
                             newFormatID = xNumberFormats.addNew(newFormat, locale);
                         }
-                        changeNumberFormat(cell, cellProps, newFormatID, value);
+                        changeNumberFormat(cellProps, newFormatID);
                         log.info("Integer value with total digits >= 12. Changed format to {} for value={}", newFormat, cellValue);
                     } else if (!isInteger && totalDigits >= 11) {
                         int zerosAfterDecimal = digitsAfterDecimal - (totalDigits - 10);
-                        StringBuilder formatBuilder = new StringBuilder("0.");
-                        for (int i = 0; i < zerosAfterDecimal; i++) {
-                            formatBuilder.append('0');
-                        }
-                        String newFormat = formatBuilder.toString();
-                        int newFormatID = xNumberFormats.queryKey(newFormat, locale, false);
+                        String newFormat = "0." + "0".repeat(Math.max(0, zerosAfterDecimal));
+                        int newFormatID = xNumberFormats.queryKey(newFormat, locale, true);
                         if (newFormatID == -1) {
                             newFormatID = xNumberFormats.addNew(newFormat, locale);
                         }
-                        changeNumberFormat(cell, cellProps, newFormatID, value);
+                        changeNumberFormat(cellProps, newFormatID);
                         log.info("Decimal value with total digits >= 11. Changed format to {} for value={}", newFormat, cellValue);
                     } else {
                         log.info("Not going to change format for: value={}, isInteger={}, total digits={}, digitsBeforeDecimal={}, digitsAfterDecimal={}",
@@ -126,22 +107,11 @@ public class ExcelNumberFormatFilter implements Filter {
         }
     }
 
-    private static void changeNumberFormat(XCell cell, XPropertySet cellProps, int newNumFormat, double value)
+    private void changeNumberFormat(XPropertySet cellProps, int newNumFormat)
             throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
         log.info("before set:{}, new id: {}", cellProps.getPropertyValue("NumberFormat"), newNumFormat);
-
         cellProps.setPropertyValue("NumberFormat", Integer.valueOf(newNumFormat));
-        log.info("after set Integer:{}", cellProps.getPropertyValue("NumberFormat"));
-
-        // try to refresh, but seem not helping
-        cell.setFormula(cell.getFormula());  // Refresh the cell
-        log.info("after formula:{}", cellProps.getPropertyValue("NumberFormat"));
-
-        cell.setValue(Double.NaN);
-        log.info("after NaN:{}", cellProps.getPropertyValue("NumberFormat"));
-
-        cell.setValue(value);
-        log.info("after value:{}", cellProps.getPropertyValue("NumberFormat"));
+        log.info("after set format id:{}", cellProps.getPropertyValue("NumberFormat"));
     }
 
     private CellRangeAddress getCellRangeAddress(XUsedAreaCursor xUsedAreaCursor) {
@@ -169,19 +139,5 @@ public class ExcelNumberFormatFilter implements Filter {
 
     public static int getDigitsAfterDecimal(BigDecimal bd) {
         return Math.max(bd.scale(), 0);
-    }
-
-    private String printProps(XPropertySet xPageStyleProps) {
-        String info = Arrays.stream(xPageStyleProps.getPropertySetInfo().getProperties())
-                .filter(x -> true)
-                .map(x -> {
-                    try {
-                        return x.Name + " is " + xPageStyleProps.getPropertyValue(x.Name);
-                    } catch (UnknownPropertyException | WrappedTargetException e) {
-                        return "failed";
-                    }
-                }).collect(joining("\n"));
-        log.info(info);
-        return info;
     }
 }

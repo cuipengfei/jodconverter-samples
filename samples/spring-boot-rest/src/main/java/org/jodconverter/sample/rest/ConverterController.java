@@ -141,6 +141,7 @@ public class ConverterController {
             // Decode the parameters to load and store properties.
             final Map<String, Object> loadProperties =
                     new HashMap<>(LocalConverter.DEFAULT_LOAD_PROPERTIES);
+            loadProperties.put("ReadOnly", false);
             final Map<String, Object> storeProperties = new HashMap<>();
             parameterDecoder.decodeParameters(parameters, loadProperties, storeProperties);
 
