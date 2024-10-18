@@ -7,6 +7,7 @@ import com.sun.star.lang.Locale;
 import com.sun.star.lang.WrappedTargetException;
 import com.sun.star.lang.XComponent;
 import com.sun.star.sheet.*;
+import com.sun.star.table.CellContentType;
 import com.sun.star.table.CellRangeAddress;
 import com.sun.star.table.XCell;
 import com.sun.star.uno.AnyConverter;
@@ -21,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
 
+import static com.sun.star.table.CellContentType.FORMULA;
 import static com.sun.star.table.CellContentType.VALUE;
 import static com.sun.star.uno.UnoRuntime.queryInterface;
 
@@ -65,7 +67,8 @@ public class ExcelNumberFormatFilter implements Filter {
 
     private void processCell(XCell cell, XNumberFormats xNumberFormats) {
         try {
-            if (cell.getType() == VALUE) {
+            CellContentType cellType = cell.getType();
+            if (cellType == VALUE || cellType == FORMULA) {
                 XPropertySet cellProps = queryInterface(XPropertySet.class, cell);
                 int key = AnyConverter.toInt(cellProps.getPropertyValue("NumberFormat"));
                 XPropertySet numberFormat = xNumberFormats.getByKey(key);
