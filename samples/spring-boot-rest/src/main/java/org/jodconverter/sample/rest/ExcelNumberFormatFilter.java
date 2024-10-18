@@ -126,18 +126,12 @@ public class ExcelNumberFormatFilter implements Filter {
         }
     }
 
-    private static void changeNumberFormat(XCell cell, XPropertySet cellProps, int newValue, double value)
+    private static void changeNumberFormat(XCell cell, XPropertySet cellProps, int newNumFormat, double value)
             throws UnknownPropertyException, PropertyVetoException, WrappedTargetException {
-        log.info("before set:{}, new id: {}", cellProps.getPropertyValue("NumberFormat"), newValue);
+        log.info("before set:{}, new id: {}", cellProps.getPropertyValue("NumberFormat"), newNumFormat);
 
-        cellProps.setPropertyValue("NumberFormat", newValue);
-        log.info("after set:{}", cellProps.getPropertyValue("NumberFormat"));
-
-        cellProps.setPropertyValue("NumberFormat", Integer.valueOf(newValue));
+        cellProps.setPropertyValue("NumberFormat", Integer.valueOf(newNumFormat));
         log.info("after set Integer:{}", cellProps.getPropertyValue("NumberFormat"));
-
-        cellProps.setPropertyValue("NumberFormat", AnyConverter.toInt(newValue));
-        log.info("after set AnyConverter:{}", cellProps.getPropertyValue("NumberFormat"));
 
         // try to refresh, but seem not helping
         cell.setFormula(cell.getFormula());  // Refresh the cell
