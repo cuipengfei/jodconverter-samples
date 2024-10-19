@@ -92,7 +92,7 @@ public class ExcelNumberFormatFilter implements Filter {
         int digitsBeforeDecimal = getDigitsBeforeDecimal(cellValue);
         int digitsAfterDecimal = getDigitsAfterDecimal(cellValue);
 
-        if (isInteger && totalDigits >= 12) {
+        if (digitsBeforeDecimal >= 12) {
             applyScientificNotationFormat(cellProps, xNumberFormats, locale, cellValue);
         } else if (!isInteger && totalDigits >= 11) {
             applyDecimalFormat(cellProps, xNumberFormats, locale, cellValue, digitsAfterDecimal);
