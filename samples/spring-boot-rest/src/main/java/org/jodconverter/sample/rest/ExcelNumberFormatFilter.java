@@ -6,7 +6,11 @@ import com.sun.star.beans.XPropertySet;
 import com.sun.star.lang.Locale;
 import com.sun.star.lang.WrappedTargetException;
 import com.sun.star.lang.XComponent;
-import com.sun.star.sheet.*;
+import com.sun.star.sheet.XCellRangeAddressable;
+import com.sun.star.sheet.XSheetCellCursor;
+import com.sun.star.sheet.XSpreadsheet;
+import com.sun.star.sheet.XSpreadsheetDocument;
+import com.sun.star.sheet.XUsedAreaCursor;
 import com.sun.star.table.CellContentType;
 import com.sun.star.table.CellRangeAddress;
 import com.sun.star.table.XCell;
@@ -25,6 +29,7 @@ import java.math.BigDecimal;
 import static com.sun.star.table.CellContentType.FORMULA;
 import static com.sun.star.table.CellContentType.VALUE;
 import static com.sun.star.uno.UnoRuntime.queryInterface;
+import static java.math.BigDecimal.valueOf;
 
 public class ExcelNumberFormatFilter implements Filter {
     private static final Logger log = LoggerFactory.getLogger(ExcelNumberFormatFilter.class);
@@ -76,7 +81,7 @@ public class ExcelNumberFormatFilter implements Filter {
                 String formatString = numberFormat.getPropertyValue("FormatString").toString();
 
                 if (formatString.equals("General")) {
-                    BigDecimal cellValue = BigDecimal.valueOf(cell.getValue());
+                    BigDecimal cellValue = new BigDecimal(valueOf(cell.getValue()).toPlainString());
                     handleGeneralFormat(cellProps, xNumberFormats, locale, cellValue);
                 }
             }
@@ -151,11 +156,18 @@ public class ExcelNumberFormatFilter implements Filter {
     }
 
     public static int getTotalDigits(BigDecimal bd) {
-        return bd.precision();
+        String plainString = bd.toPlainString();
+        int totalDigits = 0;
+        for (char c : plainString.toCharArray()) {
+            if (Character.isDigit(c)) {
+                totalDigits++;
+            }
+        }
+        return totalDigits;
     }
 
     public static int getDigitsBeforeDecimal(BigDecimal bd) {
-        return bd.precision() - bd.scale();
+        return getTotalDigits(bd) - bd.scale();
     }
 
     public static int getDigitsAfterDecimal(BigDecimal bd) {
