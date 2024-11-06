@@ -81,7 +81,7 @@ public class ExcelNumberFormatFilter implements Filter {
                 String formatString = numberFormat.getPropertyValue("FormatString").toString();
 
                 if (formatString.equals("General")) {
-                    BigDecimal cellValue = new BigDecimal(valueOf(cell.getValue()).toPlainString());
+                    BigDecimal cellValue = new BigDecimal(valueOf(cell.getValue()).stripTrailingZeros().toPlainString());
                     handleGeneralFormat(cellProps, xNumberFormats, locale, cellValue);
                 }
             }
@@ -90,6 +90,16 @@ public class ExcelNumberFormatFilter implements Filter {
         }
     }
 
+    /**
+     * if 整数或者小数，整数部分>=12位
+     * then 则使用科学计数法，科学计数法中E前面的数字最多保留五位小数，如果五位小数都是0，则忽略0
+     * <p>
+     * else if 绝对值小于0.0001(10的负四次方)，且总位数（不算末尾的额外的0）>=11
+     * then 则使用科学计数法，科学计数法中E前面的数字最多保留五位小数，如果五位小数都是0，则忽略0
+     * <p>
+     * else if 有小数点的，并且总位数>=11，则四舍五入
+     * then 如果四舍五入后最后一位是0，则忽略0
+     */
     private void handleGeneralFormat(XPropertySet cellProps, XNumberFormats xNumberFormats, Locale locale, BigDecimal cellValue)
             throws PropertyVetoException, WrappedTargetException, MalformedNumberFormatException, UnknownPropertyException {
         boolean isInteger = isInteger(cellValue);
@@ -99,26 +109,30 @@ public class ExcelNumberFormatFilter implements Filter {
 
         if (digitsBeforeDecimal >= 12) {
             applyScientificNotationFormat(cellProps, xNumberFormats, locale, cellValue);
+        } else if (cellValue.abs().compareTo(new BigDecimal("0.0001")) < 0 && totalDigits >= 11) {
+            applyScientificNotationFormat(cellProps, xNumberFormats, locale, cellValue);
         } else if (!isInteger && totalDigits >= 11) {
-            applyDecimalFormat(cellProps, xNumberFormats, locale, cellValue, digitsAfterDecimal);
+            applyDecimalFormat(cellProps, xNumberFormats, locale, cellValue, digitsAfterDecimal, totalDigits);
         } else {
             log.info("Not going to change format for: value={}, isInteger={}, total digits={}, digitsBeforeDecimal={}, digitsAfterDecimal={}",
                     cellValue, isInteger, totalDigits, digitsBeforeDecimal, digitsAfterDecimal);
         }
     }
 
-    private void applyScientificNotationFormat(XPropertySet cellProps, XNumberFormats xNumberFormats, Locale locale, BigDecimal cellValue)
+    private void applyScientificNotationFormat(XPropertySet cellProps, XNumberFormats xNumberFormats, Locale locale,
+                                               BigDecimal cellValue)
             throws PropertyVetoException, WrappedTargetException, UnknownPropertyException, MalformedNumberFormatException {
-        String newFormat = "0.00000E+00";
+        String newFormat = "0.#####E+00";
         int newFormatID = addOrQueryFormat(xNumberFormats, newFormat, locale);
         changeNumberFormat(cellProps, newFormatID);
         log.info("Integer value with total digits >= 12. Changed format to {} for value={}", newFormat, cellValue);
     }
 
-    private void applyDecimalFormat(XPropertySet cellProps, XNumberFormats xNumberFormats, Locale locale, BigDecimal cellValue, int digitsAfterDecimal)
+    private void applyDecimalFormat(XPropertySet cellProps, XNumberFormats xNumberFormats, Locale locale,
+                                    BigDecimal cellValue, int digitsAfterDecimal, int totalDigits)
             throws MalformedNumberFormatException, PropertyVetoException, WrappedTargetException, UnknownPropertyException {
-        int zerosAfterDecimal = digitsAfterDecimal - (getTotalDigits(cellValue) - 10);
-        String newFormat = "0." + "0".repeat(Math.max(0, zerosAfterDecimal));
+        int zerosAfterDecimal = digitsAfterDecimal - (totalDigits - 10);
+        String newFormat = "0." + "#".repeat(Math.max(0, zerosAfterDecimal));
         int newFormatID = addOrQueryFormat(xNumberFormats, newFormat, locale);
         changeNumberFormat(cellProps, newFormatID);
         log.info("Decimal value with total digits >= 11. Changed format to {} for value={}", newFormat, cellValue);
@@ -156,7 +170,7 @@ public class ExcelNumberFormatFilter implements Filter {
     }
 
     public static int getTotalDigits(BigDecimal bd) {
-        String plainString = bd.toPlainString();
+        String plainString = bd.stripTrailingZeros().toPlainString();
         int totalDigits = 0;
         for (char c : plainString.toCharArray()) {
             if (Character.isDigit(c)) {
