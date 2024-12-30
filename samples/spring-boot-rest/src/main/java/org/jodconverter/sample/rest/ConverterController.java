@@ -150,7 +150,7 @@ public class ConverterController {
                     LocalConverter.builder()
                             .officeManager(officeManager)
                             .filterChain(
-                                    new ExcelNumberFormatFilter(),
+                                    // new ExcelNumberFormatFilter(),  废弃
                                     new ExcelSinglePageFilter(),
                                     new WordFrameFilter(),
                                     new PptPageResizeFilter())
