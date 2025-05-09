@@ -8,7 +8,11 @@ import com.sun.star.container.XEnumerationAccess;
 import com.sun.star.container.XNameAccess;
 import com.sun.star.lang.WrappedTargetException;
 import com.sun.star.lang.XComponent;
-import com.sun.star.text.*;
+import com.sun.star.text.XText;
+import com.sun.star.text.XTextContent;
+import com.sun.star.text.XTextDocument;
+import com.sun.star.text.XTextFrame;
+import com.sun.star.text.XTextFramesSupplier;
 import org.jodconverter.core.office.OfficeContext;
 import org.jodconverter.local.filter.Filter;
 import org.jodconverter.local.filter.FilterChain;
@@ -44,9 +48,6 @@ public class WordFrameFilter implements Filter {
      * 用段落颜色覆盖frame的背景色
      */
     public void overrideFrameColorWithParagraphColor(XTextDocument xTextDocument) throws Exception {
-        // 获取文档的文本内容
-        XText xText = xTextDocument.getText();
-
         // 获取 XTextFramesSupplier 接口
         XTextFramesSupplier xTextFramesSupplier = queryInterface(XTextFramesSupplier.class, xTextDocument);
 
@@ -88,22 +89,28 @@ public class WordFrameFilter implements Filter {
         XEnumerationAccess xEnumerationAccess = queryInterface(XEnumerationAccess.class, xText);
         XEnumeration enumeration = xEnumerationAccess.createEnumeration();
 
-        // 遍历内容，寻找第一个段落
+        // Traverse the content to find the first paragraph
         while (enumeration.hasMoreElements()) {
             XTextContent xTextContent = queryInterface(XTextContent.class, enumeration.nextElement());
             if (xTextContent != null) {
-                log.info("found paragraph inside: {}", xTextContent.getAnchor().getString());
+                log.info("Found paragraph inside: {}", xTextContent.getAnchor().getString());
 
                 XPropertySet xParagraphProperties = queryInterface(XPropertySet.class, xTextContent);
-                Object paraBackColor = xParagraphProperties.getPropertyValue("ParaBackColor");
-                log.info("this paragraph's back color is {}", paraBackColor);
 
-                // 返回找到的第一个段落的背景色
-                return (int) paraBackColor;
+                // Check if the property exists
+                if (xParagraphProperties.getPropertySetInfo().hasPropertyByName("ParaBackColor")) {
+                    Object paraBackColor = xParagraphProperties.getPropertyValue("ParaBackColor");
+                    log.info("This paragraph's back color is {}", paraBackColor);
+
+                    // Return the background color of the first paragraph
+                    return (int) paraBackColor;
+                } else {
+                    log.warn("Property 'ParaBackColor' does not exist for this paragraph.");
+                }
             }
         }
 
-        log.info("no paragraph found, will return 0");
+        log.info("No paragraph found, will return 0");
         return 0;
     }
 }
