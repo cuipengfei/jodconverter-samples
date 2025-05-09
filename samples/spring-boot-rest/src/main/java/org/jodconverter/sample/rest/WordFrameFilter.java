@@ -63,6 +63,12 @@ public class WordFrameFilter implements Filter {
                 XPropertySet xProps = queryInterface(XPropertySet.class, xTextFrame);
                 Object firstParagraphBackColor = getFirstParagraphBackColor(xTextFrame.getText());
 
+                // Skip if no valid paragraph background color is found
+                if (firstParagraphBackColor == null) {
+                    log.info("No valid paragraph background color found for frame '{}'. Skipping.", frameName);
+                    continue;
+                }
+
                 // 如果frame的背景色是负值，则用段落颜色覆盖
                 if ((int) xProps.getPropertyValue("BackColor") < 0) {
                     xProps.setPropertyValue("BackColor", firstParagraphBackColor);
@@ -76,7 +82,7 @@ public class WordFrameFilter implements Filter {
                     xProps.setPropertyValue("BackColorTransparency", 0);
                 }
             } catch (Exception e) {
-                log.error("error handling frame", e);
+                log.error("Error handling frame '{}'", frameName, e);
             }
         }
     }
@@ -84,7 +90,7 @@ public class WordFrameFilter implements Filter {
     /**
      * 获取段落的背景色
      */
-    private static int getFirstParagraphBackColor(XText xText)
+    private static Integer getFirstParagraphBackColor(XText xText)
             throws WrappedTargetException, NoSuchElementException, UnknownPropertyException {
         XEnumerationAccess xEnumerationAccess = queryInterface(XEnumerationAccess.class, xText);
         XEnumeration enumeration = xEnumerationAccess.createEnumeration();
@@ -105,12 +111,12 @@ public class WordFrameFilter implements Filter {
                     // Return the background color of the first paragraph
                     return (int) paraBackColor;
                 } else {
-                    log.warn("Property 'ParaBackColor' does not exist for this paragraph.");
+                    log.warn("Property 'ParaBackColor' does not exist for this paragraph. Skipping.");
                 }
             }
         }
 
-        log.info("No paragraph found, will return 0");
-        return 0;
+        log.info("No paragraph found, will return null");
+        return null;
     }
 }
